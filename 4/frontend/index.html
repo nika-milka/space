@@ -1,0 +1,3176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кассиопея - Космический Монитор</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+    <style>
+        /* Все существующие стили остаются без изменений */
+        :root {
+            --space-blue: #0d1b2a;
+            --nebula-purple: #6a4c93;
+            --star-yellow: #ffd166;
+            --planet-teal: #06d6a0;
+            --mars-red: #ef476f;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--space-blue) 0%, #1b3a4b 100%);
+            color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* ДОБАВЛЕНО: Анимации для SPA переходов */
+        .page-container {
+            position: relative;
+            min-height: 100vh;
+        }
+        
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.4s ease-in-out;
+            pointer-events: none;
+            visibility: hidden;
+        }
+        .last-update {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-family: 'Courier New', monospace; 
+        }
+
+        .table-space th {
+            background: rgba(106, 76, 147, 0.2);
+            border-bottom: 2px solid var(--nebula-purple);
+            color: var(--star-yellow);
+            font-weight: 600;
+            padding: 15px 12px;
+        }
+
+        .table-space td {
+            padding: 12px;
+            vertical-align: middle;
+        }
+
+        .mission-badge {
+            background: linear-gradient(45deg, var(--nebula-purple), #7b6ba8);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .data-type-badge {
+            background: linear-gradient(45deg, #48cae4, #0096c7);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .apod-card .card-body {
+            padding: 20px;
+        }
+
+        .apod-card .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--star-yellow);
+        }
+
+        .apod-card .card-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .page.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: all;
+            visibility: visible;
+        }
+        #issTableBody tr {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid rgba(106, 76, 147, 0.1);
+        }
+
+        #issTableBody tr:hover {
+            background: linear-gradient(90deg, rgba(106, 76, 147, 0.1), rgba(6, 214, 160, 0.05));
+            transform: translateX(5px);
+        }
+
+        #issTableBody tr td:first-child {
+            border-left: 3px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        #issTableBody tr:hover td:first-child {
+            border-left-color: var(--planet-teal);
+        }
+
+        .coordinate-badge {
+            transition: all 0.3s ease;
+        }
+
+        .coordinate-badge:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .table-space thead th {
+            background: linear-gradient(135deg, var(--nebula-purple), rgba(106, 76, 147, 0.8));
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            border: none;
+            padding: 15px 12px;
+            font-weight: 600;
+            position: relative;
+        }
+
+        .table-space thead th::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background: var(--star-yellow);
+            border-radius: 1px;
+        }
+
+        #issTableBody .text-muted {
+            color: #adb5bd !important;
+            font-size: 1rem;
+        }
+
+        #issTableBody .text-muted i {
+            color: var(--planet-teal);
+            margin-right: 10px;
+        }
+        .page.leaving {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        .slide-up {
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        .slide-down {
+            animation: slideDown 0.5s ease-out;
+        }
+        
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
+        }
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            position: relative;
+            padding-right: 25px !important;
+        }
+
+        .sortable-header:hover {
+            background: rgba(255, 209, 102, 0.1) !important;
+        }
+
+        .sortable-header.active {
+            background: linear-gradient(135deg, 
+                rgba(106, 76, 147, 0.3), 
+                rgba(6, 214, 160, 0.2)
+            ) !important;
+        }
+
+        .sort-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.9em;
+            opacity: 0.5;
+            transition: all 0.2s ease;
+        }
+
+        .sortable-header:hover .sort-icon,
+        .sortable-header.active .sort-icon {
+            opacity: 1;
+            color: var(--star-yellow);
+        }
+
+        .sort-icon.asc i {
+            transform: rotate(180deg);
+        }
+
+        .sort-icon.desc i {
+            transform: rotate(0deg);
+        }
+
+        .sort-dropdown {
+            min-width: 200px;
+        }
+
+        .sort-option {
+            padding: 8px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+        }
+
+        .sort-option:hover {
+            background: rgba(106, 76, 147, 0.1);
+        }
+
+        .sort-option.active {
+            background: linear-gradient(90deg, 
+                rgba(106, 76, 147, 0.2), 
+                rgba(106, 76, 147, 0.1)
+            );
+            color: var(--star-yellow);
+        }
+
+        .table-row-move {
+            transition: transform 0.3s ease;
+        }
+
+        .sort-controls {
+            background: rgba(13, 27, 42, 0.6);
+            border: 1px solid rgba(106, 76, 147, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .sort-controls-title {
+            color: var(--star-yellow);
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sort-controls-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .sort-btn {
+            background: rgba(106, 76, 147, 0.2);
+            border: 1px solid rgba(106, 76, 147, 0.4);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .sort-btn:hover {
+            background: rgba(106, 76, 147, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .sort-btn.active {
+            background: linear-gradient(135deg, 
+                rgba(6, 214, 160, 0.4), 
+                rgba(106, 76, 147, 0.4)
+            );
+            border-color: var(--planet-teal);
+            color: var(--star-yellow);
+        }
+
+        .sort-btn.active .sort-indicator {
+            color: var(--star-yellow);
+        }
+
+        .sort-indicator {
+            font-size: 0.8em;
+            color: #adb5bd;
+            transition: all 0.2s ease;
+        }
+
+        .current-sort {
+            background: rgba(255, 209, 102, 0.1);
+            border: 1px solid rgba(255, 209, 102, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .current-sort span {
+            color: var(--star-yellow);
+            font-weight: 600;
+        }
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .stagger-children > * {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeUp 0.5s ease-out forwards;
+        }
+        
+        .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+        .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+        .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+        .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+        .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(6, 214, 160, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(6, 214, 160, 0.6);
+            }
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+        
+        @keyframes fadeUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* ДОБАВЛЕНО: Стили для активной навигации */
+        .nav-link.page-link {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link.page-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--planet-teal);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link.page-link.active::after {
+            width: 100%;
+        }
+        
+        .nav-link.page-link:hover:not(.active)::after {
+            width: 50%;
+        }
+        
+        /* ДОБАВЛЕНО: Анимация для карточек при загрузке */
+        .card-space.animate-in {
+            animation: cardAppear 0.5s ease-out forwards;
+        }
+        
+        @keyframes cardAppear {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        /* ДОБАВЛЕНО: Стили для страниц */
+        .page-header {
+            background: linear-gradient(135deg, rgba(106, 76, 147, 0.1), rgba(13, 27, 42, 0.3));
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid rgba(106, 76, 147, 0.3);
+            padding: 20px 0;
+            margin-bottom: 30px;
+            animation: slideDown 0.6s ease-out;
+        }
+        
+        .page-title {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, var(--star-yellow), var(--planet-teal));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-weight: bold;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Все остальные существующие стили остаются без изменений */
+        .navbar-space {
+            background: rgba(13, 27, 42, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid var(--planet-teal);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-space {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(106, 76, 147, 0.3);
+            border-radius: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        /* ... все остальные существующие стили ... */
+        
+        .apod-fallback {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 250px;
+            background: linear-gradient(45deg, #0d1b2a, #1b3a4b);
+            border-radius: 10px 10px 0 0;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-space">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="bi bi-stars fs-3 me-2 float-animation" style="color: var(--star-yellow);"></i>
+                <span class="fw-bold fs-4">КАССИОПЕЯ</span>
+                <span class="badge bg-warning ms-2 pulse-glow">SPA v1.1</span>
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <span class="real-time-badge badge">
+                        <i class="bi bi-circle-fill me-1"></i>Режим демонстрации
+                    </span>
+                </div>
+                <div id="connectionStatus" class="me-3">
+                    <span class="badge bg-success">
+                        <i class="bi bi-wifi me-1"></i>Online
+                    </span>
+                </div>
+                <button class="btn btn-space" onclick="router.refreshCurrentPage()" id="refreshBtn">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Обновить
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- SPA Контейнер -->
+    <div class="page-container">
+        <!-- Главная страница (dashboard) -->
+        <div id="dashboard-page" class="page active">
+            <div class="container mt-4">
+                <!-- Статистика -->
+                <div class="row mb-4 stagger-children" id="statsContainer">
+                    <!-- Заполняется JavaScript -->
+                </div>
+
+                <!-- Вкладки -->
+                <ul class="nav nav-tabs" id="spaceTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link page-link active" onclick="router.navigate('/iss-tracker')">
+                            <i class="bi bi-satellite me-2"></i>МКС Трекер
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link page-link" onclick="router.navigate('/nasa-data')">
+                            <i class="bi bi-database me-2"></i>Датасеты NASA
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link page-link" onclick="router.navigate('/apod-gallery')">
+                            <i class="bi bi-camera me-2"></i>Космические фото
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link page-link" onclick="router.navigate('/add-data')">
+                            <i class="bi bi-plus-circle me-2"></i>Добавить данные
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Контент вкладок -->
+                <div class="tab-content card-space mt-0 p-4 fade-in" id="spaceTabsContent">
+                    <div class="text-center">
+                        <h4 class="page-title mb-3">Добро пожаловать в Кассиопея Space Monitor</h4>
+                        <p class="text-muted mb-4">Выберите раздел для начала работы</p>
+                        
+                        <div class="row mt-5">
+                            <div class="col-md-3 mb-4">
+                                <div class="card card-space p-3 text-center h-100" onclick="router.navigate('/iss-tracker')" style="cursor: pointer;">
+                                    <div class="mb-3">
+                                        <i class="bi bi-satellite fs-1" style="color: var(--planet-teal);"></i>
+                                    </div>
+                                    <h5>МКС Трекер</h5>
+                                    <p class="small text-muted">Отслеживание позиции МКС в реальном времени</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card card-space p-3 text-center h-100" onclick="router.navigate('/nasa-data')" style="cursor: pointer;">
+                                    <div class="mb-3">
+                                        <i class="bi bi-database fs-1" style="color: var(--nebula-purple);"></i>
+                                    </div>
+                                    <h5>Датасеты NASA</h5>
+                                    <p class="small text-muted">Просмотр научных данных космических миссий</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card card-space p-3 text-center h-100" onclick="router.navigate('/apod-gallery')" style="cursor: pointer;">
+                                    <div class="mb-3">
+                                        <i class="bi bi-camera fs-1" style="color: var(--star-yellow);"></i>
+                                    </div>
+                                    <h5>Космические фото</h5>
+                                    <p class="small text-muted">Галерея Astronomy Picture of the Day</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-4">
+                                <div class="card card-space p-3 text-center h-100" onclick="router.navigate('/add-data')" style="cursor: pointer;">
+                                    <div class="mb-3">
+                                        <i class="bi bi-plus-circle fs-1" style="color: var(--mars-red);"></i>
+                                    </div>
+                                    <h5>Добавить данные</h5>
+                                    <p class="small text-muted">Добавление и управление данными</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Системная информация -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card card-space p-3 slide-up">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <span>Кассиопея Space Monitor v1.1 | SPA Режим</span>
+                                </div>
+                                <div>
+                                    <span class="badge bg-info me-2">FastAPI</span>
+                                    <span class="badge bg-success me-2">PostgreSQL</span>
+                                    <span class="badge bg-warning">Redis</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Страница МКС Трекера -->
+        <div id="iss-tracker-page" class="page">
+            <div class="page-header">
+                <div class="container">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="page-title mb-2">
+                                <i class="bi bi-satellite me-2"></i>МКС Трекер
+                            </h1>
+                            <p class="text-muted mb-0">Отслеживание позиции Международной Космической Станции</p>
+                        </div>
+                        <button class="btn btn-space" onclick="router.navigate('/')">
+                            <i class="bi bi-arrow-left me-2"></i>На главную
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container mt-4">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="map-container slide-up" style="position: relative;">
+                            <div id="issMap" style="height: 500px;"></div>
+                            <div class="map-controls">
+                                <div class="control-btn" onclick="toggleRoute()" title="Показать/скрыть маршрут">
+                                    <i class="bi bi-signpost"></i>
+                                </div>
+                                <div class="control-btn" onclick="centerMap()" title="Центрировать карту">
+                                    <i class="bi bi-crosshair"></i>
+                                </div>
+                                <div class="control-btn" onclick="toggleTrail()" title="Показать след МКС">
+                                    <i class="bi bi-stars"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="legend mt-3 fade-in">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #ffd166;"></div>
+                                <span>Текущая позиция МКС</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #06d6a0;"></div>
+                                <span>Маршрут МКС</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #ef476f;"></div>
+                                <span>Исторические позиции</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="filter-box slide-down">
+                            <h5><i class="bi bi-filter me-2"></i>Управление данными</h5>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label">Режим работы:</label>
+                                    <select class="form-select search-input" id="dataMode">
+                                        <option value="real">Реальные данные</option>
+                                        <option value="demo" selected>Демо данные</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn-space w-100 mt-3" onclick="issTracker.loadISSPositions()" id="loadIssBtn">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Загрузить данные
+                            </button>
+                        </div>
+                        <div class="mt-3">
+                            <h6>Текущая позиция:</h6>
+                            <div class="card card-space p-3 mb-3 fade-in">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="text-muted">Широта</small>
+                                        <div class="speed-indicator" id="currentLat">0°</div>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Долгота</small>
+                                        <div class="speed-indicator" id="currentLon">0°</div>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Скорость</small>
+                                        <div class="speed-indicator" id="currentSpeed">0 км/ч</div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 text-center">
+                                    <small class="text-muted" id="lastUpdate">Обновлено: --:--:--</small>
+                                </div>
+                            </div>
+                            <h6>Последние позиции:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-space table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 30%;">
+                                                <div class="sortable-header" data-column="timestamp" onclick="issTracker.sortTable('timestamp')">
+                                                    <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                        <i class="bi bi-clock" style="color: #ffd166;"></i>
+                                                        <span>ВРЕМЯ</span>
+                                                    </div>
+                                                    <span class="sort-icon" id="sortIcon-iss-timestamp">
+                                                        <i class="bi bi-arrow-down-up"></i>
+                                                    </span>
+                                                </div>
+                                            </th>
+                                            <th style="width: 35%;">
+                                                <div class="sortable-header" data-column="latitude" onclick="issTracker.sortTable('latitude')">
+                                                    <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                        <i class="bi bi-geo-alt" style="color: #06d6a0;"></i>
+                                                        <span>КООРДИНАТЫ</span>
+                                                    </div>
+                                                    <span class="sort-icon" id="sortIcon-iss-latitude">
+                                                        <i class="bi bi-arrow-down-up"></i>
+                                                    </span>
+                                                </div>
+                                            </th>
+                                            <th style="width: 35%;">
+                                                <div class="sortable-header" data-column="velocity" onclick="issTracker.sortTable('velocity')">
+                                                    <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                        <i class="bi bi-speedometer2" style="color: #48cae4;"></i>
+                                                        <span>ДАННЫЕ</span>
+                                                    </div>
+                                                    <span class="sort-icon" id="sortIcon-iss-velocity">
+                                                        <i class="bi bi-arrow-down-up"></i>
+                                                    </span>
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="issTableBody">
+                                        <!-- Данные загружаются через JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Страница данных NASA -->
+        <div id="nasa-data-page" class="page">
+            <div class="page-header">
+                <div class="container">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="page-title mb-2">
+                                <i class="bi bi-database me-2"></i>Датасеты NASA
+                            </h1>
+                            <p class="text-muted mb-0">Научные данные космических миссий</p>
+                        </div>
+                        <button class="btn btn-space" onclick="router.navigate('/')">
+                            <i class="bi bi-arrow-left me-2"></i>На главную
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container mt-4">
+                <div class="filter-box slide-down">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control search-input" 
+                                   id="nasaSearch" placeholder="Поиск по названию...">
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-select search-input" id="dataTypeFilter">
+                                <option value="">Все типы данных</option>
+                                <option value="CSV">CSV</option>
+                                <option value="JSON">JSON</option>
+                                <option value="XML">XML</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive fade-in">
+                    <table class="table table-space" style="border-collapse: separate; border-spacing: 0 10px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 15%; min-width: 150px;">
+                                    <!-- Управление сортировкой NASA данных -->
+                                    <div class="sort-controls slide-down">
+                                        <div class="sort-controls-title">
+                                            <i class="bi bi-sort-down"></i>
+                                            Управление сортировкой
+                                        </div>
+                                        
+                                        <div class="sort-controls-buttons">
+                                            <!-- Первая строка кнопок -->
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                                <button class="sort-btn" onclick="nasaData.setSort('id', 'asc')" id="sortBtn-id-asc">
+                                                    <span>ID (возрастание)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-id-asc">1</span>
+                                                </button>
+                                                <button class="sort-btn" onclick="nasaData.setSort('id', 'desc')" id="sortBtn-id-desc">
+                                                    <span>ID (убывание)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-id-desc">1</span>
+                                                </button>
+                                                
+                                                <button class="sort-btn" onclick="nasaData.setSort('title', 'asc')" id="sortBtn-title-asc">
+                                                    <span>Название (А-Я)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-title-asc">1</span>
+                                                </button>
+                                                <button class="sort-btn" onclick="nasaData.setSort('title', 'desc')" id="sortBtn-title-desc">
+                                                    <span>Название (Я-А)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-title-desc">1</span>
+                                                </button>
+                                                
+                                                <button class="sort-btn" onclick="nasaData.setSort('mission', 'asc')" id="sortBtn-mission-asc">
+                                                    <span>Миссия (А-Я)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-mission-asc">1</span>
+                                                </button>
+                                                <button class="sort-btn" onclick="nasaData.setSort('mission', 'desc')" id="sortBtn-mission-desc">
+                                                    <span>Миссия (Я-А)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-mission-desc">1</span>
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Вторая строка кнопок -->
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                <button class="sort-btn" onclick="nasaData.setSort('size', 'asc')" id="sortBtn-size-asc">
+                                                    <span>Размер (малый→большой)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-size-asc">1</span>
+                                                </button>
+                                                <button class="sort-btn" onclick="nasaData.setSort('size', 'desc')" id="sortBtn-size-desc">
+                                                    <span>Размер (большой→малый)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-size-desc">1</span>
+                                                </button>
+                                                
+                                                <button class="sort-btn" onclick="nasaData.setSort('date', 'asc')" id="sortBtn-date-asc">
+                                                    <span>Дата (старые→новые)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-date-asc">1</span>
+                                                </button>
+                                                <button class="sort-btn" onclick="nasaData.setSort('date', 'desc')" id="sortBtn-date-desc">
+                                                    <span>Дата (новые→старые)</span>
+                                                    <span class="sort-indicator" id="sortIndicator-date-desc">1</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Информация о текущей сортировке -->
+                                        <div class="current-sort" id="currentSortInfo">
+                                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                                <div>
+                                                    Текущая сортировка: 
+                                                    <span style="color: var(--star-yellow); font-weight: 600; margin-left: 5px;">
+                                                        ID (по убыванию)
+                                                    </span>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <button class="btn btn-sm btn-space" onclick="nasaData.resetSort()" style="padding: 5px 12px; font-size: 0.85rem;">
+                                                        <i class="bi bi-arrow-clockwise me-1"></i>Сбросить
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-light" onclick="nasaData.toggleSortDirection()" style="padding: 5px 12px; font-size: 0.85rem;">
+                                                        <i class="bi bi-arrow-repeat me-1"></i>Изменить направление
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Заголовки таблицы NASA с иконками сортировки -->
+                                    <div class="table-responsive fade-in">
+                                        <table class="table table-space" style="border-collapse: separate; border-spacing: 0 10px;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 15%; min-width: 150px;">
+                                                        <div class="sortable-header" data-column="id" onclick="nasaData.sortTable('id')">
+                                                            <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                                <i class="bi bi-hash" style="color: #ffd166;"></i>
+                                                                <span>ID ДАТАСЕТА</span>
+                                                            </div>
+                                                            <span class="sort-icon" id="sortIcon-id">
+                                                                <i class="bi bi-arrow-down-up"></i>
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    <th style="width: 12%; min-width: 120px;">
+                                                        <div class="sortable-header" data-column="mission" onclick="nasaData.sortTable('mission')">
+                                                            <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                                <i class="bi bi-rocket-takeoff" style="color: #ef476f;"></i>
+                                                                <span>МИССИЯ</span>
+                                                            </div>
+                                                            <span class="sort-icon" id="sortIcon-mission">
+                                                                <i class="bi bi-arrow-down-up"></i>
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    <th style="width: 35%; min-width: 250px;">
+                                                        <div class="sortable-header" data-column="title" onclick="nasaData.sortTable('title')">
+                                                            <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                                <i class="bi bi-file-text" style="color: #06d6a0;"></i>
+                                                                <span>НАЗВАНИЕ</span>
+                                                            </div>
+                                                            <span class="sort-icon" id="sortIcon-title">
+                                                                <i class="bi bi-arrow-down-up"></i>
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    <th style="width: 10%; min-width: 100px;">
+                                                        <div class="sortable-header" data-column="type" onclick="nasaData.sortTable('type')">
+                                                            <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                                <i class="bi bi-code-slash" style="color: #48cae4;"></i>
+                                                                <span>ФОРМАТ</span>
+                                                            </div>
+                                                            <span class="sort-icon" id="sortIcon-type">
+                                                                <i class="bi bi-arrow-down-up"></i>
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    <th style="width: 13%; min-width: 120px;">
+                                                        <div class="sortable-header" data-column="size" onclick="nasaData.sortTable('size')">
+                                                            <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                                <i class="bi bi-hdd" style="color: #ffd166;"></i>
+                                                                <span>РАЗМЕР</span>
+                                                            </div>
+                                                            <span class="sort-icon" id="sortIcon-size">
+                                                                <i class="bi bi-arrow-down-up"></i>
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    <th style="width: 15%; min-width: 130px;">
+                                                        <div style="display: flex; align-items: center; gap: 8px; color: white;">
+                                                            <i class="bi bi-download" style="color: #6a4c93;"></i>
+                                                            <span>ДЕЙСТВИЯ</span>
+                                                        </div>
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="nasaTableBody">
+                            <!-- Данные загружаются через JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="text-muted" id="nasaResultsInfo">
+                        Демо данные
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Страница космических фото -->
+        <div id="apod-gallery-page" class="page">
+            <div class="page-header">
+                <div class="container">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="page-title mb-2">
+                                <i class="bi bi-camera me-2"></i>Космические фото
+                            </h1>
+                            <p class="text-muted mb-0">Astronomy Picture of the Day (APOD)</p>
+                        </div>
+                        <button class="btn btn-space" onclick="router.navigate('/')">
+                            <i class="bi bi-arrow-left me-2"></i>На главную
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container mt-4">
+                <div class="filter-box slide-down">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <select class="form-select search-input" id="apodLimit" onchange="apodGallery.loadAPODData()">
+                                <option value="3">3 фото</option>
+                                <option value="6" selected>6 фото</option>
+                                <option value="9">9 фото</option>
+                                <option value="12">12 фото</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row stagger-children" id="apodContainer">
+                    <!-- Карточки APOD -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Страница добавления данных -->
+        <div id="add-data-page" class="page">
+            <div class="page-header">
+                <div class="container">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="page-title mb-2">
+                                <i class="bi bi-plus-circle me-2"></i>Добавить данные
+                            </h1>
+                            <p class="text-muted mb-0">Управление данными и тестирование</p>
+                        </div>
+                        <button class="btn btn-space" onclick="router.navigate('/')">
+                            <i class="bi bi-arrow-left me-2"></i>На главную
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container mt-4">
+                <div class="row stagger-children">
+                    <div class="col-md-6">
+                        <div class="card card-space p-4 animate-in">
+                            <h4><i class="bi bi-plus-circle me-2"></i>Добавить позицию МКС</h4>
+                            <form id="addIssForm" onsubmit="return issTracker.addISSPosition(event)">
+                                <div class="mb-3">
+                                    <label class="form-label">Широта (°)</label>
+                                    <input type="number" class="form-control search-input" 
+                                           id="latitude" step="0.0001" min="-90" max="90" 
+                                           value="51.5074" required>
+                                    <div class="form-text">От -90 до 90 градусов</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Долгота (°)</label>
+                                    <input type="number" class="form-control search-input" 
+                                           id="longitude" step="0.0001" min="-180" max="180" 
+                                           value="-0.1278" required>
+                                    <div class="form-text">От -180 до 180 градусов</div>
+                                </div>
+                                <button type="submit" class="btn btn-space-success w-100" id="addIssBtn">
+                                    <i class="bi bi-rocket-takeoff me-2"></i>Добавить позицию (демо)
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card card-space p-4 animate-in">
+                            <h4><i class="bi bi-info-circle me-2"></i>Информация о системе</h4>
+                            <p>Это демонстрационная версия Кассиопея Space Monitor.</p>
+                            <div class="alert alert-info fade-in">
+                                <i class="bi bi-lightbulb me-2"></i>
+                                <strong>Функционал:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>Карта с трекингом МКС и маршрутом</li>
+                                    <li>Таблицы с космическими данными</li>
+                                    <li>Галерея космических фото NASA APOD</li>
+                                    <li>Добавление тестовых данных</li>
+                                </ul>
+                            </div>
+                            <hr>
+                            <h6>Быстрые координаты:</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-light" onclick="setCityCoords(55.7558, 37.6173)">
+                                    Москва
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" onclick="setCityCoords(40.7128, -74.0060)">
+                                    Нью-Йорк
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" onclick="setCityCoords(48.8566, 2.3522)">
+                                    Париж
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для APOD -->
+    <div class="modal fade" id="apodModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content modal-space">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="apodModalTitle">Космическое фото дня</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center" id="apodModalBody">
+                    <!-- Контент модального окна заполняется через JS -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-space" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toasts для уведомлений -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="successToast" class="toast toast-space" role="alert">
+            <div class="toast-header">
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                <strong class="me-auto">Успешно</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="successMessage">
+                Операция выполнена успешно
+            </div>
+        </div>
+        
+        <div id="errorToast" class="toast toast-space" role="alert">
+            <div class="toast-header">
+                <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                <strong class="me-auto">Ошибка</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="errorMessage">
+                Произошла ошибка
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/locale/ru.min.js"></script>
+    <script>
+        // Конфигурация
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+        
+        // Глобальные переменные
+        let issMap = null;
+        let issMarkers = [];
+        let issPolyline = null;
+        let issPositionsHistory = [];
+        let routeVisible = true;
+        let trailVisible = false;
+        let currentAPODImages = [];
+        
+        // Реальные данные APOD от NASA (остаются без изменений)
+        const realAPODImages = [
+            {
+                "date": "2024-01-15",
+                "title": "Starburst Galaxy M94 from Hubble",
+                "explanation": "Why does this galaxy have a ring of bright blue stars? Beautiful island universe Messier 94 lies a mere 15 million light-years distant in the northern constellation of the Hunting Dogs (Canes Venatici).",
+                "url": "https://apod.nasa.gov/apod/image/2401/M94_Hubble_960.jpg", // Изменен URL на меньший размер
+                "media_type": "image"
+            },
+            {
+                "date": "2024-01-14",
+                "title": "The Aurora and the Sunrise",
+                "explanation": "On the Sun, an enormous solar flare occurred, followed by a large Coronal Mass Ejection (CME) the next day. The CME impacted the Earth's magnetosphere and triggered a G3-class geomagnetic storm.",
+                "url": "https://apod.nasa.gov/apod/image/2401/AuroraSunrise_Arseniy_960.jpg",
+                "media_type": "image"
+            },
+            {
+                "date": "2024-01-13",
+                "title": "Comet 2022 E3 (ZTF)",
+                "explanation": "Comet ZTF may become visible to the unaided eye. Discovered early last year, this large snowball has been brightening as it approaches the Sun and the Earth.",
+                "url": "https://apod.nasa.gov/apod/image/2301/C2022E3ZTF_960.jpg",
+                "media_type": "image"
+            },
+            {
+                "date": "2024-01-12",
+                "title": "Jupiter and Io from Webb",
+                "explanation": "Jupiter and its moon Io are captured in this stunning image from the James Webb Space Telescope. The infrared view reveals details in Jupiter's atmosphere and auroras.",
+                "url": "https://apod.nasa.gov/apod/image/2308/JupiterWebb_NASA_960.jpg",
+                "media_type": "image"
+            },
+            {
+                "date": "2024-01-11",
+                "title": "The Horsehead Nebula",
+                "explanation": "The Horsehead Nebula is one of the most famous nebulas in the sky. It is visible as the dark indentation to the red emission nebula in the center of the above photograph.",
+                "url": "https://apod.nasa.gov/apod/image/2304/HorseHead_HubbleOzsari_960.jpg",
+                "media_type": "image"
+            },
+            {
+                "date": "2024-01-10",
+                "title": "Saturn's Rings from the Inside Out",
+                "explanation": "What do Saturn's rings look like from the inside? As the robotic Cassini spacecraft orbited Saturn, it was able to look outward in the direction of Saturn's rings.",
+                "url": "https://apod.nasa.gov/apod/image/2301/SaturnRings_Cassini_960.jpg",
+                "media_type": "image"
+            }
+        ];
+
+        // Демо данные (остаются без изменений)
+        const demoStats = {
+            "database": {
+                "iss_positions": 4,
+                "nasa_datasets": 3,
+                "apod_images": 2,
+                "total_records": 9
+            },
+            "latest": {
+                "iss_position": {
+                    "timestamp": new Date().toISOString(),
+                    "latitude": 51.5074,
+                    "longitude": -0.1278
+                },
+                "apod": {
+                    "date": "2024-01-15",
+                    "title": "Winter Stars Over Japan"
+                }
+            },
+            "timestamp": new Date().toISOString()
+        };
+        
+        // SPA Роутер
+        const router = {
+            currentPage: 'dashboard-page',
+            pageHistory: ['dashboard-page'],
+            
+            routes: {
+                '/': 'dashboard-page',
+                '/iss-tracker': 'iss-tracker-page',
+                '/nasa-data': 'nasa-data-page',
+                '/apod-gallery': 'apod-gallery-page',
+                '/add-data': 'add-data-page'
+            },
+            
+            init() {
+                moment.locale('ru');
+                
+                // Обработка навигации по истории браузера
+                window.addEventListener('popstate', (e) => {
+                    this.navigate(window.location.pathname, false);
+                });
+                
+                // Инициализация начальной страницы
+                const initialPath = window.location.pathname || '/';
+                this.navigate(initialPath, false);
+                
+                // Инициализация всех модулей
+                issTracker.init();
+            },
+            
+            navigate(path, pushState = true) {
+                const pageId = this.routes[path] || this.routes['/'];
+                if (pageId === this.currentPage) return;
+                
+                // Анимация перехода
+                this.transitionToPage(pageId, pushState);
+                
+                // Обновление URL в браузере
+                if (pushState) {
+                    window.history.pushState({}, '', path);
+                }
+                
+                // Загрузка данных для новой страницы
+                this.loadPageData(pageId);
+            },
+            
+            transitionToPage(newPageId, animate = true) {
+                const oldPage = document.getElementById(this.currentPage);
+                const newPage = document.getElementById(newPageId);
+                
+                if (!newPage) return;
+                
+                if (animate && oldPage) {
+                    // Анимация выхода старой страницы
+                    oldPage.classList.remove('active');
+                    oldPage.classList.add('leaving');
+                    
+                    // Анимация входа новой страницы
+                    setTimeout(() => {
+                        oldPage.classList.remove('leaving');
+                        newPage.classList.add('active');
+                        
+                        // Обновляем активные ссылки в навигации
+                        this.updateActiveLinks(newPageId);
+                        
+                        // Запускаем анимации элементов на новой странице
+                        this.animatePageElements(newPage);
+                        
+                    }, 300);
+                } else {
+                    // Без анимации
+                    if (oldPage) {
+                        oldPage.classList.remove('active');
+                    }
+                    newPage.classList.add('active');
+                    this.updateActiveLinks(newPageId);
+                }
+                
+                // Обновляем историю
+                if (this.currentPage !== newPageId) {
+                    this.pageHistory.push(newPageId);
+                }
+                
+                this.currentPage = newPageId;
+            },
+            
+            updateActiveLinks(pageId) {
+                // Убираем активный класс со всех ссылок
+                document.querySelectorAll('.nav-link.page-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                
+                // Добавляем активный класс соответствующей ссылке
+                const route = Object.entries(this.routes).find(([path, id]) => id === pageId);
+                if (route) {
+                    const [path] = route;
+                    document.querySelectorAll(`[onclick*="${path}"]`).forEach(link => {
+                        link.classList.add('active');
+                    });
+                }
+            },
+            
+            animatePageElements(page) {
+                // Анимация для карточек
+                setTimeout(() => {
+                    const cards = page.querySelectorAll('.card-space');
+                    cards.forEach((card, index) => {
+                        card.classList.add('animate-in');
+                        card.style.animationDelay = `${index * 0.1}s`;
+                    });
+                    
+                    // Анимация для таблиц
+                    const tables = page.querySelectorAll('.table-space tbody tr');
+                    tables.forEach((row, index) => {
+                        row.style.animationDelay = `${index * 0.05}s`;
+                        row.classList.add('fade-in');
+                    });
+                }, 50);
+            },
+            
+            loadPageData(pageId) {
+                switch(pageId) {
+                    case 'iss-tracker-page':
+                        issTracker.loadISSPositions();
+                        break;
+                    case 'nasa-data-page':
+                        nasaData.loadNASAData();
+                        break;
+                    case 'apod-gallery-page':
+                        apodGallery.loadAPODData();
+                        break;
+                    case 'dashboard-page':
+                        this.loadStats();
+                        break;
+                }
+            },
+            
+            refreshCurrentPage() {
+                this.loadPageData(this.currentPage);
+                
+                // Визуальная обратная связь
+                const btn = document.getElementById('refreshBtn');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check2 me-2"></i>Обновлено';
+                btn.disabled = true;
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }, 2000);
+            },
+            
+            async loadStats() {
+                try {
+                    const mode = document.getElementById('dataMode')?.value || 'demo';
+                    
+                    if (mode === 'demo') {
+                        this.updateStatsUI(demoStats);
+                        return;
+                    }
+                    
+                    const response = await axios.get(`${API_BASE}/v1/space/stats`, {
+                        timeout: 5000
+                    });
+                    this.updateStatsUI(response.data);
+                    
+                } catch (error) {
+                    console.log('Используем демо данные из-за ошибки:', error.message);
+                    this.updateStatsUI(demoStats);
+                }
+            },
+            
+            updateStatsUI(data) {
+                const statsContainer = document.getElementById('statsContainer');
+                if (!statsContainer) return;
+                
+                statsContainer.innerHTML = `
+                    <div class="col-md-3">
+                        <div class="stat-card fade-in">
+                            <div class="stat-value">${data.database.iss_positions}</div>
+                            <div class="stat-label">Позиций МКС</div>
+                            <div class="last-update">${data.latest.iss_position ? moment(data.latest.iss_position.timestamp).fromNow() : 'нет данных'}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card fade-in">
+                            <div class="stat-value">${data.database.nasa_datasets}</div>
+                            <div class="stat-label">Датасетов NASA</div>
+                            <div class="last-update">3 миссии</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card fade-in">
+                            <div class="stat-value">${data.database.apod_images}</div>
+                            <div class="stat-label">Космических фото</div>
+                            <div class="last-update">${data.latest.apod ? moment(data.latest.apod.date).format('DD.MM.YYYY') : 'нет данных'}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card fade-in">
+                            <div class="stat-value">${data.database.total_records}</div>
+                            <div class="stat-label">Всего записей</div>
+                            <div class="last-update">${moment().format('HH:mm:ss')}</div>
+                        </div>
+                    </div>
+                `;
+            },
+            
+            goBack() {
+                if (this.pageHistory.length > 1) {
+                    this.pageHistory.pop(); // Удаляем текущую страницу
+                    const previousPage = this.pageHistory.pop();
+                    this.navigateToPageById(previousPage);
+                }
+            },
+            
+            navigateToPageById(pageId) {
+                const route = Object.entries(this.routes).find(([path, id]) => id === pageId);
+                if (route) {
+                    const [path] = route;
+                    this.navigate(path);
+                }
+            }
+        };
+
+        // Модуль МКС Трекера
+        const issTracker = {
+            originalPositions: [],
+            displayedPositions: [],
+            currentFilters: {},
+            autoUpdateInterval: null,
+
+            init() {
+                this.initMap();
+                
+                // Инициализация сортировки по умолчанию
+                SortManager.init('iss');
+                
+                // Автообновление каждые 10 секунд
+                if (this.autoUpdateInterval) {
+                    clearInterval(this.autoUpdateInterval);
+                }
+                
+                this.autoUpdateInterval = setInterval(() => {
+                    if (router.currentPage === 'iss-tracker-page') {
+                        this.updateISSRealTime();
+                    }
+                }, 10000);
+            },
+            
+            initMap() {
+                // Используем красивую карту NASA Blue Marble
+                issMap = L.map('issMap', {
+                    minZoom: 1,
+                    maxZoom: 8,
+                    worldCopyJump: true,
+                    attributionControl: false
+                }).setView([20, 0], 2);
+                
+                // Добавляем стилизованный слой карты без атрибуции
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 8,
+                    className: 'earth-map'
+                }).addTo(issMap);
+                
+                // Добавляем слой орбиты
+                this.addOrbitLayer();
+            },
+            
+            addOrbitLayer() {
+                // Создаем примерную орбиту МКС (наклон 51.6 градусов)
+                const orbitPoints = [];
+                const steps = 180;
+                const inclination = 51.6 * Math.PI / 180;
+                
+                for (let i = 0; i <= steps; i++) {
+                    const angle = (i / steps) * 2 * Math.PI;
+                    const lat = Math.asin(Math.sin(inclination) * Math.sin(angle)) * 180 / Math.PI;
+                    const lon = (angle * 180 / Math.PI) % 360 - 180;
+                    orbitPoints.push([lat, lon]);
+                }
+                
+                L.polyline(orbitPoints, {
+                    color: 'rgba(255, 209, 102, 0.2)',
+                    weight: 1,
+                    dashArray: '5, 5',
+                    className: 'orbit-path'
+                }).addTo(issMap);
+            },
+            
+            async loadISSPositions() {
+                const mode = document.getElementById('dataMode')?.value || 'demo';
+                const loadBtn = document.getElementById('loadIssBtn');
+                let originalHtml = '';
+                if (loadBtn) {
+                    const originalHtml = loadBtn.innerHTML;
+                    loadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
+                    loadBtn.disabled = true;
+                }
+                
+                try {
+                    let positions;
+                    
+                    if (mode === 'demo') {
+                        positions = this.getDemoPositions();
+                    } else {
+                        const response = await axios.get(`${API_BASE}/v1/space/iss/positions`, {
+                            params: { limit: 50 },
+                            timeout: 5000
+                        });
+                        positions = response.data.items;
+                    }
+                    
+                    // Сохраняем оригинальные данные
+                    this.originalPositions = positions;
+                    this.displayedPositions = [...positions];
+                    
+                    // Применяем текущую сортировку
+                    const currentSort = SortManager.getCurrentSort('iss');
+                    if (currentSort && currentSort.column) {
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            currentSort.column,
+                            currentSort.direction
+                        );
+                    } else {
+                        // По умолчанию сортируем по времени (новые сверху)
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            'timestamp',
+                            'desc'
+                        );
+                    }
+                    
+                    issPositionsHistory = this.displayedPositions;
+                    this.updateISSMap(this.displayedPositions);
+                    this.updateISSTable(this.displayedPositions);
+                    
+                    if (this.displayedPositions.length > 0) {
+                        this.updateCurrentPosition(this.displayedPositions[0]);
+                    }
+                    
+                    showSuccess(`Загружено ${this.displayedPositions.length} позиций МКС`);
+                    
+                } catch (error) {
+                    console.log('Используем демо данные:', error.message);
+                    this.originalPositions = this.getDemoPositions();
+                    this.displayedPositions = [...this.originalPositions];
+                    
+                    // Применяем сортировку к демо данным
+                    const currentSort = SortManager.getCurrentSort('iss');
+                    if (currentSort && currentSort.column) {
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            currentSort.column,
+                            currentSort.direction
+                        );
+                    } else {
+                        // По умолчанию сортируем по времени
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            'timestamp',
+                            'desc'
+                        );
+                    }
+                    
+                    issPositionsHistory = this.displayedPositions;
+                    this.updateISSMap(issPositionsHistory);
+                    this.updateISSTable(issPositionsHistory);
+                    this.updateCurrentPosition(issPositionsHistory[0]);
+                    showSuccess(`Загружены демо данные (${issPositionsHistory.length} позиций)`);
+                }
+                
+                if (loadBtn) {
+                    loadBtn.innerHTML = originalHtml;
+                    loadBtn.disabled = false;
+                }
+            },
+            
+            // Метод сортировки для МКС
+            sortTable(column) {
+                if (!this.displayedPositions || this.displayedPositions.length === 0) return;
+                
+                const currentSort = SortManager.getCurrentSort('iss');
+                let direction = 'asc';
+                
+                if (currentSort && currentSort.column === column) {
+                    direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                }
+                
+                this.displayedPositions = SortManager.sort(
+                    this.displayedPositions,
+                    'iss',
+                    column,
+                    direction
+                );
+                
+                this.updateISSTable(this.displayedPositions);
+                
+                // Для сортировки по координатам или скорости не обновляем карту
+                if (column === 'timestamp') {
+                    // При сортировке по времени обновляем карту
+                    this.updateISSMap(this.displayedPositions);
+                } else if (column === 'latitude' || column === 'longitude') {
+                    // При сортировке по координатам тоже обновляем карту для наглядности
+                    this.updateISSMap(this.displayedPositions);
+                }
+                
+                const columnNames = {
+                    'timestamp': 'времени',
+                    'latitude': 'широте',
+                    'longitude': 'долготе',
+                    'velocity': 'скорости',
+                    'altitude': 'высоте'
+                };
+                
+                showSuccess(`Позиции МКС отсортированы по ${columnNames[column] || column} (${direction === 'asc' ? 'возрастанию' : 'убыванию'})`);
+            },
+            
+            setSort(column, direction) {
+                if (!this.displayedPositions || this.displayedPositions.length === 0) return;
+                
+                this.displayedPositions = SortManager.sort(
+                    this.displayedPositions,
+                    'iss',
+                    column,
+                    direction
+                );
+                
+                this.updateISSTable(this.displayedPositions);
+                
+                // Обновляем карту если сортируем по времени или координатам
+                if (column === 'timestamp' || column === 'latitude' || column === 'longitude') {
+                    this.updateISSMap(this.displayedPositions);
+                }
+                
+                showSuccess(`Установлена сортировка по ${column} (${direction === 'asc' ? 'возрастанию' : 'убыванию'})`);
+            },
+            
+            resetSort() {
+                SortManager.resetSort('iss');
+                this.displayedPositions = [...this.originalPositions];
+                
+                // Возвращаем сортировку по умолчанию (по времени, новые сверху)
+                this.displayedPositions = SortManager.sort(
+                    this.displayedPositions,
+                    'iss',
+                    'timestamp',
+                    'desc'
+                );
+                
+                this.updateISSTable(this.displayedPositions);
+                this.updateISSMap(this.displayedPositions);
+                showSuccess('Сортировка сброшена (по умолчанию: новые позиции сверху)');
+            },
+            
+            toggleSortDirection() {
+                const newDirection = SortManager.toggleSortDirection('iss');
+                if (newDirection && this.displayedPositions.length > 0) {
+                    const currentSort = SortManager.getCurrentSort('iss');
+                    if (currentSort && currentSort.column) {
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            currentSort.column,
+                            newDirection
+                        );
+                        this.updateISSTable(this.displayedPositions);
+                        
+                        // Обновляем карту если нужно
+                        if (currentSort.column === 'timestamp' || 
+                            currentSort.column === 'latitude' || 
+                            currentSort.column === 'longitude') {
+                            this.updateISSMap(this.displayedPositions);
+                        }
+                        
+                        showSuccess(`Направление сортировки изменено на ${newDirection === 'asc' ? 'возрастание' : 'убывание'}`);
+                    }
+                }
+            },
+            
+            getDemoPositions() {
+                const now = new Date();
+                return [
+                    {
+                        "id": 1,
+                        "timestamp": new Date(now.getTime() - 0).toISOString(),
+                        "latitude": 51.5074,
+                        "longitude": -0.1278,
+                        "altitude": 408.0,
+                        "velocity": 27600.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 2,
+                        "timestamp": new Date(now.getTime() - 3600000).toISOString(),
+                        "latitude": 48.8566,
+                        "longitude": 2.3522,
+                        "altitude": 410.0,
+                        "velocity": 27500.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 3,
+                        "timestamp": new Date(now.getTime() - 7200000).toISOString(),
+                        "latitude": 40.7128,
+                        "longitude": -74.0060,
+                        "altitude": 412.0,
+                        "velocity": 27400.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 4,
+                        "timestamp": new Date(now.getTime() - 10800000).toISOString(),
+                        "latitude": 55.7558,
+                        "longitude": 37.6173,
+                        "altitude": 409.0,
+                        "velocity": 27700.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 5,
+                        "timestamp": new Date(now.getTime() - 14400000).toISOString(),
+                        "latitude": 35.6762,
+                        "longitude": 139.6503,
+                        "altitude": 411.0,
+                        "velocity": 27650.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 6,
+                        "timestamp": new Date(now.getTime() - 18000000).toISOString(),
+                        "latitude": 25.2048,
+                        "longitude": 55.2708,
+                        "altitude": 407.0,
+                        "velocity": 27580.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 7,
+                        "timestamp": new Date(now.getTime() - 21600000).toISOString(),
+                        "latitude": -33.8688,
+                        "longitude": 151.2093,
+                        "altitude": 410.5,
+                        "velocity": 27620.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 8,
+                        "timestamp": new Date(now.getTime() - 25200000).toISOString(),
+                        "latitude": 39.9042,
+                        "longitude": 116.4074,
+                        "altitude": 408.5,
+                        "velocity": 27590.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 9,
+                        "timestamp": new Date(now.getTime() - 28800000).toISOString(),
+                        "latitude": -23.5505,
+                        "longitude": -46.6333,
+                        "altitude": 409.8,
+                        "velocity": 27610.0,
+                        "visibility": "visible"
+                    },
+                    {
+                        "id": 10,
+                        "timestamp": new Date(now.getTime() - 32400000).toISOString(),
+                        "latitude": 28.6139,
+                        "longitude": 77.2090,
+                        "altitude": 407.5,
+                        "velocity": 27570.0,
+                        "visibility": "visible"
+                    }
+                ];
+            },
+            
+            updateISSMap(positions) {
+                // Очищаем старые маркеры и линии
+                issMarkers.forEach(marker => issMap.removeLayer(marker));
+                issMarkers = [];
+                
+                if (issPolyline) {
+                    issMap.removeLayer(issPolyline);
+                }
+                
+                if (!positions || positions.length === 0) return;
+                
+                const latest = positions[0];
+                const latLngs = positions.map(pos => [pos.latitude, pos.longitude]);
+                
+                // Центрируем карту на последней позиции
+                issMap.setView([latest.latitude, latest.longitude], 3);
+                
+                // Добавляем линию маршрута
+                if (routeVisible) {
+                    issPolyline = L.polyline(latLngs, {
+                        color: '#06d6a0',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '10, 10',
+                        className: 'route-line'
+                    }).addTo(issMap);
+                }
+                
+                // Добавляем маркеры с анимацией
+                positions.forEach((pos, index) => {
+                    const isLatest = index === 0;
+                    const marker = L.marker([pos.latitude, pos.longitude], {
+                        icon: L.divIcon({
+                            className: 'iss-marker',
+                            iconSize: isLatest ? [50, 50] : [10, 10],
+                            html: isLatest ? 
+                                '<div style="font-size: 40px; animation: pulse 2s infinite;">🚀</div>' : 
+                                '<div style="width: 10px; height: 10px; background: #ef476f; border-radius: 50%;"></div>'
+                        })
+                    }).addTo(issMap);
+                    
+                    // Добавляем всплывающее окно с информацией
+                    const popupContent = `
+                        <div class="text-center">
+                            <strong>МКС Позиция #${pos.id}</strong><br>
+                            <small>${moment(pos.timestamp).format('DD.MM.YYYY HH:mm:ss')}</small><br>
+                            <hr class="my-2">
+                            <div class="text-start">
+                                <strong>Широта:</strong> ${pos.latitude.toFixed(4)}°<br>
+                                <strong>Долгота:</strong> ${pos.longitude.toFixed(4)}°<br>
+                                <strong>Высота:</strong> ${pos.altitude} км<br>
+                                <strong>Скорость:</strong> ${pos.velocity} км/ч<br>
+                                <strong>Видимость:</strong> ${pos.visibility}
+                            </div>
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                    issMarkers.push(marker);
+                });
+                
+                // Добавляем след если включен
+                if (trailVisible) {
+                    this.addTrailDots(positions);
+                }
+            },
+            
+            addTrailDots(positions) {
+                positions.forEach((pos, index) => {
+                    if (index % 5 === 0) {
+                        const dot = L.circleMarker([pos.latitude, pos.longitude], {
+                            radius: 2,
+                            color: '#ffd166',
+                            fillColor: '#ffd166',
+                            fillOpacity: 0.5
+                        }).addTo(issMap);
+                        
+                        dot.bindTooltip(`${moment(pos.timestamp).format('HH:mm')}`, {
+                            permanent: false,
+                            direction: 'top'
+                        });
+                        
+                        issMarkers.push(dot);
+                    }
+                });
+            },
+            
+            updateCurrentPosition(pos) {
+                document.getElementById('currentLat').textContent = `${pos.latitude.toFixed(4)}°`;
+                document.getElementById('currentLon').textContent = `${pos.longitude.toFixed(4)}°`;
+                document.getElementById('currentSpeed').textContent = `${pos.velocity} км/ч`;
+                document.getElementById('lastUpdate').textContent = 
+                    `Обновлено: ${moment(pos.timestamp).format('HH:mm:ss')}`;
+            },
+            
+            updateISSTable(positions) {
+                const tableBody = document.getElementById('issTableBody');
+                if (!tableBody) return;
+                
+                tableBody.innerHTML = '';
+                
+                if (!positions || positions.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center text-muted p-4">
+                                <i class="bi bi-database-slash me-2"></i>
+                                <span style="color: #adb5bd;">Нет данных для отображения</span>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Получаем текущую сортировку
+                const currentSort = SortManager.getCurrentSort('iss');
+                
+                positions.slice(0, 10).forEach((pos, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'card-hover fade-in table-row-move';
+                    row.style.animationDelay = `${index * 0.05}s`;
+                    row.style.cursor = 'pointer';
+                    
+                    // Проверяем, является ли эта строка "особенной" из-за сортировки
+                    if (currentSort && currentSort.column) {
+                        row.classList.add('sorted-row');
+                    }
+                    
+                    row.onclick = () => {
+                        if (issMap) {
+                            issMap.setView([pos.latitude, pos.longitude], 5);
+                            const marker = issMarkers.find(m => 
+                                m.getLatLng().lat === pos.latitude && 
+                                m.getLatLng().lng === pos.longitude
+                            );
+                            if (marker) marker.openPopup();
+                        }
+                    };
+                    
+                    // Форматируем время с цветом
+                    const timeFormatted = moment(pos.timestamp).format('HH:mm:ss');
+                    const dateFormatted = moment(pos.timestamp).format('DD.MM.YYYY');
+                    
+                    // Определяем цвет для координат в зависимости от широты
+                    let coordColor = '#06d6a0'; // По умолчанию зеленый
+                    
+                    if (Math.abs(pos.latitude) > 60) {
+                        coordColor = '#ffd166'; // Желтый для высоких широт
+                    } else if (Math.abs(pos.latitude) < 30) {
+                        coordColor = '#48cae4'; // Голубой для низких широт
+                    }
+                    
+                    row.innerHTML = `
+                        <td style="padding: 12px;">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="color: #ffd166; font-weight: 600; font-size: 1rem;">
+                                    <i class="bi bi-clock me-2"></i>${timeFormatted}
+                                </span>
+                                <small style="color: #adb5bd; font-size: 0.85rem;">
+                                    ${dateFormatted}
+                                </small>
+                            </div>
+                        </td>
+                        <td style="padding: 12px;">
+                            <div class="coordinate-badge" style="
+                                background: rgba(106, 76, 147, 0.2);
+                                border: 1px solid ${coordColor};
+                                color: white;
+                                padding: 8px 16px;
+                                border-radius: 25px;
+                                font-size: 0.95rem;
+                                font-weight: 500;
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 10px;
+                            ">
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <i class="bi bi-globe-americas" style="color: ${coordColor};"></i>
+                                    <span style="color: white; font-weight: 600;">
+                                        ${pos.latitude > 0 ? 'N' : 'S'} ${Math.abs(pos.latitude).toFixed(2)}°
+                                    </span>
+                                </div>
+                                <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.3);"></div>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <i class="bi bi-globe-asia-australia" style="color: ${coordColor};"></i>
+                                    <span style="color: white; font-weight: 600;">
+                                        ${pos.longitude > 0 ? 'E' : 'W'} ${Math.abs(pos.longitude).toFixed(2)}°
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="padding: 12px;">
+                            <div style="
+                                background: rgba(255, 255, 255, 0.05);
+                                border-radius: 10px;
+                                padding: 10px;
+                                border: 1px solid rgba(106, 76, 147, 0.2);
+                            ">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span style="color: #adb5bd; font-size: 0.8rem;">
+                                        <i class="bi bi-speedometer2 me-1"></i>Скорость
+                                    </span>
+                                    <span style="color: #ffd166; font-weight: 600;">
+                                        ${pos.velocity} км/ч
+                                    </span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #adb5bd; font-size: 0.8rem;">
+                                        <i class="bi bi-arrow-up me-1"></i>Высота
+                                    </span>
+                                    <span style="color: #06d6a0; font-weight: 600;">
+                                        ${pos.altitude} км
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                
+                // Добавляем анимацию для новых строк после сортировки
+                setTimeout(() => {
+                    const rows = tableBody.querySelectorAll('.table-row-move');
+                    rows.forEach((row, index) => {
+                        row.style.transition = 'transform 0.3s ease';
+                        row.style.transform = 'translateY(0)';
+                    });
+                }, 50);
+            },
+            
+            updateISSRealTime() {
+                if (this.displayedPositions.length > 0) {
+                    const lastPos = this.displayedPositions[0];
+                    const newPos = {
+                        id: this.originalPositions.length + 1,
+                        timestamp: new Date().toISOString(),
+                        latitude: lastPos.latitude + (Math.random() - 0.5) * 2,
+                        longitude: lastPos.longitude + (Math.random() - 0.5) * 4,
+                        altitude: 408 + Math.random() * 4,
+                        velocity: 27600 + (Math.random() - 0.5) * 200,
+                        visibility: "visible"
+                    };
+                    
+                    // Добавляем в оригинальные данные
+                    this.originalPositions.unshift(newPos);
+                    if (this.originalPositions.length > 50) {
+                        this.originalPositions.pop();
+                    }
+                    
+                    // Обновляем отображаемые данные с учетом сортировки
+                    this.displayedPositions = [...this.originalPositions];
+                    const currentSort = SortManager.getCurrentSort('iss');
+                    if (currentSort && currentSort.column) {
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            currentSort.column,
+                            currentSort.direction
+                        );
+                    } else {
+                        // По умолчанию сортируем по времени
+                        this.displayedPositions = SortManager.sort(
+                            this.displayedPositions,
+                            'iss',
+                            'timestamp',
+                            'desc'
+                        );
+                    }
+                    
+                    issPositionsHistory = this.displayedPositions;
+                    this.updateISSMap(this.displayedPositions.slice(0, 20));
+                    this.updateCurrentPosition(newPos);
+                    this.updateISSTable(this.displayedPositions);
+                    
+                    // Обновляем статистику
+                    demoStats.database.iss_positions = this.originalPositions.length;
+                    demoStats.database.total_records += 1;
+                    demoStats.latest.iss_position = {
+                        timestamp: newPos.timestamp,
+                        latitude: newPos.latitude,
+                        longitude: newPos.longitude
+                    };
+                    
+                    if (router.currentPage === 'dashboard-page') {
+                        router.loadStats();
+                    }
+                }
+            },
+            
+            async addISSPosition(event) {
+                event.preventDefault();
+                
+                const latitude = parseFloat(document.getElementById('latitude').value);
+                const longitude = parseFloat(document.getElementById('longitude').value);
+                const mode = document.getElementById('dataMode')?.value || 'demo';
+                const addBtn = document.getElementById('addIssBtn');
+                const originalHtml = addBtn.innerHTML;
+                
+                addBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Добавление...';
+                addBtn.disabled = true;
+                
+                try {
+                    if (mode === 'demo') {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        const newPos = {
+                            id: this.originalPositions.length + 1,
+                            timestamp: new Date().toISOString(),
+                            latitude: latitude,
+                            longitude: longitude,
+                            altitude: 408.0,
+                            velocity: 27600.0,
+                            visibility: "visible"
+                        };
+                        
+                        // Добавляем в оригинальные данные
+                        this.originalPositions.unshift(newPos);
+                        this.displayedPositions = [...this.originalPositions];
+                        
+                        // Применяем текущую сортировку
+                        const currentSort = SortManager.getCurrentSort('iss');
+                        if (currentSort && currentSort.column) {
+                            this.displayedPositions = SortManager.sort(
+                                this.displayedPositions,
+                                'iss',
+                                currentSort.column,
+                                currentSort.direction
+                            );
+                        } else {
+                            // По умолчанию сортируем по времени
+                            this.displayedPositions = SortManager.sort(
+                                this.displayedPositions,
+                                'iss',
+                                'timestamp',
+                                'desc'
+                            );
+                        }
+                        
+                        // Обновляем глобальные переменные
+                        issPositionsHistory = this.displayedPositions;
+                        
+                        // Обновляем статистику
+                        demoStats.database.iss_positions = this.originalPositions.length;
+                        demoStats.database.total_records += 1;
+                        demoStats.latest.iss_position = {
+                            timestamp: new Date().toISOString(),
+                            latitude: latitude,
+                            longitude: longitude
+                        };
+                        
+                        // Обновляем UI
+                        if (router.currentPage === 'iss-tracker-page') {
+                            this.updateISSMap(this.displayedPositions);
+                            this.updateCurrentPosition(newPos);
+                            this.updateISSTable(this.displayedPositions);
+                        }
+                        
+                        router.loadStats();
+                        
+                        showSuccess('Позиция МКС добавлена (демо режим)');
+                        
+                    } else {
+                        const response = await axios.post(`${API_BASE}/v1/space/iss/positions`, null, {
+                            params: { latitude, longitude }
+                        });
+                        
+                        if (response.data.success) {
+                            showSuccess('Позиция МКС успешно добавлена!');
+                            this.loadISSPositions();
+                            router.loadStats();
+                        }
+                    }
+                    
+                } catch (error) {
+                    showError('Ошибка при добавлении позиции');
+                    console.error('Error:', error);
+                }
+                
+                addBtn.innerHTML = originalHtml;
+                addBtn.disabled = false;
+            }
+        };
+        // Модуль данных NASA
+        const nasaData = {
+            originalDatasets: [],
+            displayedDatasets: [],
+            currentFilters: {
+                search: '',
+                dataType: ''
+            },
+
+            async loadNASAData() {
+                const mode = document.getElementById('dataMode')?.value || 'demo';
+                const search = document.getElementById('nasaSearch')?.value || '';
+                const dataType = document.getElementById('dataTypeFilter')?.value || '';
+                
+                // Сохраняем фильтры
+                this.currentFilters.search = search;
+                this.currentFilters.dataType = dataType;
+                
+                try {
+                    let datasets;
+                    
+                    if (mode === 'demo') {
+                        datasets = this.getDemoDatasets();
+                    } else {
+                        const response = await axios.get(`${API_BASE}/v1/space/nasa/datasets`, {
+                            params: { limit: 25 },
+                            timeout: 5000
+                        });
+                        datasets = response.data.items;
+                    }
+                    
+                    // Сохраняем оригинальные данные
+                    this.originalDatasets = datasets;
+                    this.displayedDatasets = [...datasets];
+                    
+                    // Применяем фильтры
+                    this.applyFilters();
+                    
+                    // Применяем текущую сортировку
+                    const currentSort = SortManager.getCurrentSort('nasa');
+                    if (currentSort && currentSort.column) {
+                        this.displayedDatasets = SortManager.sort(
+                            this.displayedDatasets, 
+                            'nasa', 
+                            currentSort.column, 
+                            currentSort.direction
+                        );
+                    } else {
+                        // По умолчанию сортируем по ID (новые сверху)
+                        this.displayedDatasets = SortManager.sort(
+                            this.displayedDatasets,
+                            'nasa',
+                            'id',
+                            'desc'
+                        );
+                    }
+                    
+                    this.updateNASATable(this.displayedDatasets);
+                    
+                    const resultsInfo = document.getElementById('nasaResultsInfo');
+                    if (resultsInfo) {
+                        resultsInfo.innerHTML = `Показано ${this.displayedDatasets.length} из ${this.originalDatasets.length} записей`;
+                    }
+                    
+                } catch (error) {
+                    console.log('Используем демо данные NASA:', error.message);
+                    this.originalDatasets = this.getDemoDatasets();
+                    this.displayedDatasets = [...this.originalDatasets];
+                    
+                    // Применяем фильтры к демо данным
+                    this.applyFilters();
+                    
+                    // Применяем сортировку к демо данным
+                    const currentSort = SortManager.getCurrentSort('nasa');
+                    if (currentSort && currentSort.column) {
+                        this.displayedDatasets = SortManager.sort(
+                            this.displayedDatasets, 
+                            'nasa', 
+                            currentSort.column, 
+                            currentSort.direction
+                        );
+                    }
+                    
+                    this.updateNASATable(this.displayedDatasets);
+                    
+                    const resultsInfo = document.getElementById('nasaResultsInfo');
+                    if (resultsInfo) {
+                        resultsInfo.innerHTML = 'Демо данные';
+                    }
+                }
+            },
+            
+            applyFilters() {
+                let filtered = [...this.originalDatasets];
+                const { search, dataType } = this.currentFilters;
+                
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    filtered = filtered.filter(d => 
+                        d.title.toLowerCase().includes(searchLower) ||
+                        (d.dataset_id && d.dataset_id.toLowerCase().includes(searchLower)) ||
+                        (d.mission && d.mission.toLowerCase().includes(searchLower))
+                    );
+                }
+                
+                if (dataType) {
+                    filtered = filtered.filter(d => d.data_type === dataType);
+                }
+                
+                this.displayedDatasets = filtered;
+            },
+            
+            // Методы сортировки
+            sortTable(column) {
+                if (!this.displayedDatasets || this.displayedDatasets.length === 0) return;
+                
+                // Получаем текущую сортировку
+                const currentSort = SortManager.getCurrentSort('nasa');
+                let direction = 'asc';
+                
+                // Если уже сортируем по этой колонке, меняем направление
+                if (currentSort && currentSort.column === column) {
+                    direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                }
+                
+                // Применяем сортировку
+                this.displayedDatasets = SortManager.sort(
+                    this.displayedDatasets, 
+                    'nasa', 
+                    column, 
+                    direction
+                );
+                
+                this.updateNASATable(this.displayedDatasets);
+                
+                // Показываем уведомление
+                const columnNames = {
+                    'id': 'ID',
+                    'title': 'названию',
+                    'mission': 'миссии',
+                    'type': 'типу данных',
+                    'size': 'размеру',
+                    'date': 'дате'
+                };
+                
+                showSuccess(`Отсортировано по ${columnNames[column] || column} (${direction === 'asc' ? 'возрастанию' : 'убыванию'})`);
+            },
+            
+            setSort(column, direction) {
+                if (!this.displayedDatasets || this.displayedDatasets.length === 0) return;
+                
+                this.displayedDatasets = SortManager.sort(
+                    this.displayedDatasets, 
+                    'nasa', 
+                    column, 
+                    direction
+                );
+                
+                this.updateNASATable(this.displayedDatasets);
+                
+                showSuccess(`Установлена сортировка по ${column} (${direction === 'asc' ? 'возрастанию' : 'убыванию'})`);
+            },
+            
+            resetSort() {
+                SortManager.resetSort('nasa');
+                this.displayedDatasets = [...this.originalDatasets];
+                this.applyFilters();
+                this.updateNASATable(this.displayedDatasets);
+                showSuccess('Сортировка сброшена');
+            },
+            
+            toggleSortDirection() {
+                const newDirection = SortManager.toggleSortDirection('nasa');
+                if (newDirection && this.displayedDatasets.length > 0) {
+                    const currentSort = SortManager.getCurrentSort('nasa');
+                    if (currentSort && currentSort.column) {
+                        this.displayedDatasets = SortManager.sort(
+                            this.displayedDatasets, 
+                            'nasa', 
+                            currentSort.column, 
+                            newDirection
+                        );
+                        this.updateNASATable(this.displayedDatasets);
+                        showSuccess(`Направление сортировки изменено на ${newDirection === 'asc' ? 'возрастание' : 'убывание'}`);
+                    }
+                }
+            },
+            
+            getDemoDatasets() {
+                return [
+                    {
+                        "id": 1,
+                        "dataset_id": "OSDR-2024-001",
+                        "title": "ISS Microgravity Effects on Human Cells",
+                        "mission": "ISS",
+                        "instrument": "Bioanalyzer",
+                        "data_type": "CSV",
+                        "file_size_mb": 2.5,
+                        "fetched_at": new Date(Date.now() - 86400000).toISOString()
+                    },
+                    {
+                        "id": 2,
+                        "dataset_id": "OSDR-2024-002",
+                        "title": "Space Radiation Exposure Study",
+                        "mission": "Artemis",
+                        "instrument": "Radiation Monitor",
+                        "data_type": "JSON",
+                        "file_size_mb": 3.2,
+                        "fetched_at": new Date().toISOString()
+                    },
+                    {
+                        "id": 3,
+                        "dataset_id": "OSDR-2024-003",
+                        "title": "Mars Atmosphere Composition Analysis",
+                        "mission": "Mars Rover",
+                        "instrument": "Spectrometer",
+                        "data_type": "CSV",
+                        "file_size_mb": 1.8,
+                        "fetched_at": new Date(Date.now() - 172800000).toISOString()
+                    },
+                    {
+                        "id": 4,
+                        "dataset_id": "OSDR-2024-004",
+                        "title": "Jupiter Moon Europa Surface Scan",
+                        "mission": "Juno",
+                        "instrument": "Radar",
+                        "data_type": "JSON",
+                        "file_size_mb": 4.2,
+                        "fetched_at": new Date(Date.now() - 259200000).toISOString()
+                    },
+                    {
+                        "id": 5,
+                        "dataset_id": "OSDR-2024-005",
+                        "title": "Solar Flare Activity Logs",
+                        "mission": "SDO",
+                        "instrument": "Solar Telescope",
+                        "data_type": "XML",
+                        "file_size_mb": 5.7,
+                        "fetched_at": new Date(Date.now() - 345600000).toISOString()
+                    },
+                    {
+                        "id": 6,
+                        "dataset_id": "OSDR-2024-006",
+                        "title": "Venus Cloud Layer Analysis",
+                        "mission": "Venus Express",
+                        "instrument": "Infrared Camera",
+                        "data_type": "CSV",
+                        "file_size_mb": 3.9,
+                        "fetched_at": new Date(Date.now() - 432000000).toISOString()
+                    },
+                    {
+                        "id": 7,
+                        "dataset_id": "OSDR-2024-007",
+                        "title": "Black Hole Event Horizon Data",
+                        "mission": "Hubble",
+                        "instrument": "Space Telescope",
+                        "data_type": "JSON",
+                        "file_size_mb": 6.1,
+                        "fetched_at": new Date(Date.now() - 518400000).toISOString()
+                    }
+                ];
+            },
+            
+            updateNASATable(datasets) {
+                const tableBody = document.getElementById('nasaTableBody');
+                if (!tableBody) return;
+                
+                tableBody.innerHTML = '';
+                
+                if (!datasets || datasets.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center py-4" style="
+                                background: rgba(255, 255, 255, 0.05);
+                                color: #adb5bd;
+                            ">
+                                <i class="bi bi-database-x me-2" style="color: #6c757d;"></i>
+                                Нет данных для отображения
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Получаем текущую сортировку для подсветки
+                const currentSort = SortManager.getCurrentSort('nasa');
+                
+                datasets.forEach((dataset, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'card-hover fade-in table-row-move';
+                    row.style.animationDelay = `${index * 0.05}s`;
+                    
+                    // Проверяем, является ли эта строка "особенной" из-за сортировки
+                    if (currentSort && currentSort.column) {
+                        // Добавляем класс для анимации перемещения строк
+                        row.classList.add('sorted-row');
+                    }
+                    
+                    // Форматируем дату
+                    const formattedDate = dataset.fetched_at ? 
+                        moment(dataset.fetched_at).format('DD.MM.YYYY') : 
+                        moment().format('DD.MM.YYYY');
+                    
+                    // Цвета для разных типов данных
+                    const typeColors = {
+                        'CSV': '#06d6a0',
+                        'JSON': '#ffd166', 
+                        'XML': '#ef476f',
+                        'default': '#48cae4'
+                    };
+                    
+                    const dataTypeColor = typeColors[dataset.data_type] || typeColors.default;
+                    
+                    row.innerHTML = `
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="
+                                background: rgba(106, 76, 147, 0.15);
+                                border-radius: 10px;
+                                padding: 10px;
+                                border-left: 4px solid var(--planet-teal);
+                            ">
+                                <div style="
+                                    color: #ffd166;
+                                    font-weight: 700;
+                                    font-size: 1rem;
+                                    margin-bottom: 5px;
+                                    font-family: 'Courier New', monospace;
+                                ">
+                                    ${dataset.dataset_id || `ID-${dataset.id}`}
+                                </div>
+                                <div style="
+                                    color: #adb5bd;
+                                    font-size: 0.85rem;
+                                ">
+                                    <i class="bi bi-calendar3 me-1"></i>
+                                    ${formattedDate}
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="display: flex; justify-content: center;">
+                                <span class="mission-badge" style="
+                                    background: linear-gradient(135deg, #6a4c93, #8a6db0);
+                                    color: white;
+                                    padding: 8px 16px;
+                                    border-radius: 20px;
+                                    font-weight: 600;
+                                    font-size: 0.9rem;
+                                    min-width: 80px;
+                                    text-align: center;
+                                    box-shadow: 0 4px 10px rgba(106, 76, 147, 0.3);
+                                ">
+                                    ${dataset.mission || 'UNKNOWN'}
+                                </span>
+                            </div>
+                        </td>
+                        
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="
+                                background: rgba(255, 255, 255, 0.03);
+                                border-radius: 10px;
+                                padding: 15px;
+                                border: 1px solid rgba(106, 76, 147, 0.2);
+                                height: 100%;
+                            ">
+                                <div style="
+                                    color: white;
+                                    font-weight: 600;
+                                    font-size: 1rem;
+                                    margin-bottom: 8px;
+                                    line-height: 1.3;
+                                ">
+                                    ${dataset.title || 'Нет названия'}
+                                </div>
+                                <div style="
+                                    color: #adb5bd;
+                                    font-size: 0.85rem;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                ">
+                                    <span style="display: flex; align-items: center;">
+                                        <i class="bi bi-tools me-1" style="color: #ffd166;"></i>
+                                        ${dataset.instrument || 'Не указан'}
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="display: flex; justify-content: center;">
+                                <span class="data-type-badge" style="
+                                    background: linear-gradient(135deg, ${dataTypeColor}, ${dataTypeColor}dd);
+                                    color: white;
+                                    padding: 8px 16px;
+                                    border-radius: 20px;
+                                    font-weight: 600;
+                                    font-size: 0.9rem;
+                                    min-width: 70px;
+                                    text-align: center;
+                                    box-shadow: 0 4px 10px rgba(6, 214, 160, 0.2);
+                                ">
+                                    ${dataset.data_type || 'N/A'}
+                                </span>
+                            </div>
+                        </td>
+                        
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="
+                                background: rgba(255, 209, 102, 0.1);
+                                border-radius: 10px;
+                                padding: 12px;
+                                text-align: center;
+                                border: 1px solid rgba(255, 209, 102, 0.2);
+                            ">
+                                <div style="
+                                    color: #ffd166;
+                                    font-weight: 700;
+                                    font-size: 1.2rem;
+                                    margin-bottom: 5px;
+                                ">
+                                    ${dataset.file_size_mb ? `${dataset.file_size_mb.toFixed(1)}` : '0.0'}
+                                </div>
+                                <div style="
+                                    color: #adb5bd;
+                                    font-size: 0.8rem;
+                                    text-transform: uppercase;
+                                    letter-spacing: 1px;
+                                ">
+                                    MB
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <td style="padding: 15px; vertical-align: middle;">
+                            <div style="
+                                background: rgba(255, 255, 255, 0.03);
+                                border-radius: 10px;
+                                padding: 10px;
+                                text-align: center;
+                            ">
+                                <button class="btn btn-sm download-btn" style="
+                                    background: linear-gradient(135deg, rgba(106, 76, 147, 0.3), rgba(106, 76, 147, 0.5));
+                                    color: white;
+                                    border: none;
+                                    padding: 8px 16px;
+                                    border-radius: 20px;
+                                    font-size: 0.85rem;
+                                    font-weight: 500;
+                                    transition: all 0.3s ease;
+                                " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 5px 15px rgba(106, 76, 147, 0.4)'"
+                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                                onclick="nasaData.downloadDataset(${dataset.id})">
+                                    <i class="bi bi-download me-2"></i>
+                                    Скачать
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                
+                // Добавляем анимацию для новых строк после сортировки
+                setTimeout(() => {
+                    const rows = tableBody.querySelectorAll('.table-row-move');
+                    rows.forEach((row, index) => {
+                        row.style.transition = 'transform 0.3s ease';
+                        row.style.transform = 'translateY(0)';
+                    });
+                }, 50);
+            },
+            
+            downloadDataset(id) {
+                const dataset = this.displayedDatasets.find(d => d.id === id);
+                if (!dataset) {
+                    showError('Набор данных не найден');
+                    return;
+                }
+                
+                showSuccess(`Начинается загрузка: ${dataset.title}`);
+                
+                // Имитация загрузки
+                setTimeout(() => {
+                    showSuccess(`Набор данных "${dataset.title}" успешно загружен`);
+                }, 1500);
+            },
+            
+            // Метод для обработки изменения фильтров
+            handleFilterChange() {
+                const search = document.getElementById('nasaSearch')?.value || '';
+                const dataType = document.getElementById('dataTypeFilter')?.value || '';
+                
+                this.currentFilters.search = search;
+                this.currentFilters.dataType = dataType;
+                
+                this.applyFilters();
+                
+                // Применяем текущую сортировку к отфильтрованным данным
+                const currentSort = SortManager.getCurrentSort('nasa');
+                if (currentSort && currentSort.column) {
+                    this.displayedDatasets = SortManager.sort(
+                        this.displayedDatasets, 
+                        'nasa', 
+                        currentSort.column, 
+                        currentSort.direction
+                    );
+                }
+                
+                this.updateNASATable(this.displayedDatasets);
+                
+                const resultsInfo = document.getElementById('nasaResultsInfo');
+                if (resultsInfo) {
+                    resultsInfo.innerHTML = `Показано ${this.displayedDatasets.length} из ${this.originalDatasets.length} записей`;
+                }
+            }
+        };
+        // Модуль галереи APOD
+        const apodGallery = {
+            async loadAPODData() {
+                const mode = document.getElementById('dataMode')?.value || 'demo';
+                const limit = parseInt(document.getElementById('apodLimit')?.value || '6');
+                
+                try {
+                    let apods;
+                    
+                    if (mode === 'demo') {
+                        apods = realAPODImages.slice(0, limit);
+                    } else {
+                        try {
+                            const response = await axios.get(`${API_BASE}/v1/space/apod`, {
+                                params: { limit: limit },
+                                timeout: 10000
+                            });
+                            apods = response.data.items;
+                        } catch (apiError) {
+                            apods = realAPODImages.slice(0, limit);
+                        }
+                    }
+                    
+                    currentAPODImages = apods;
+                    this.updateAPODContainer(apods);
+                    
+                } catch (error) {
+                    currentAPODImages = realAPODImages.slice(0, limit);
+                    this.updateAPODContainer(realAPODImages.slice(0, limit));
+                }
+            },
+            
+            updateAPODContainer(apods) {
+                const container = document.getElementById('apodContainer');
+                if (!container) return;
+                
+                container.innerHTML = '';
+                
+                if (!apods || apods.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="bi bi-image me-2"></i>
+                            <h5>Космические фото не найдены</h5>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                apods.forEach((apod, index) => {
+                    const col = document.createElement('div');
+                    col.className = 'col-md-4 mb-4 fade-in';
+                    col.style.animationDelay = `${index * 0.1}s`;
+                    col.innerHTML = `
+                        <div class="card card-space apod-card h-100" onclick="showAPODModal(${index})" style="cursor: pointer;">
+                            <div style="position: relative; height: 250px; overflow: hidden; border-radius: 10px 10px 0 0;" class="fallback-image" id="apod-image-${index}">
+                                <img src="${apod.url}" 
+                                     class="apod-image" 
+                                     alt="${apod.title}"
+                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     onerror="handleImageError(${index})">
+                                <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">
+                                    ${apod.date}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-title">${apod.title}</h6>
+                                <p class="card-text small text-muted">
+                                    <i class="bi bi-calendar me-1"></i>${apod.date}
+                                </p>
+                                <p class="card-text small">${apod.explanation.substring(0, 100)}...</p>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <span class="badge bg-info">NASA APOD</span>
+                                    <button class="btn btn-sm btn-space">Подробнее</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(col);
+                });
+            }
+        };
+
+        async function loadAPODData() {
+            const mode = document.getElementById('dataMode')?.value || 'demo';
+            const limit = parseInt(document.getElementById('apodLimit')?.value || '6');
+            
+            try {
+                let apods;
+                
+                if (mode === 'demo') {
+                    // Используем только первые 6 рабочих изображений
+                    apods = realAPODImages.slice(0, Math.min(limit, 6));
+                    
+                    // Добавляем прелоадер для каждого изображения
+                    apods.forEach((apod, index) => {
+                        const img = new Image();
+                        img.src = apod.url;
+                        img.onerror = () => {
+                            // Если изображение не загрузилось, заменяем на фолбэк
+                            apod.url = 'https://apod.nasa.gov/apod/image/2401/default_apod.jpg';
+                        };
+                    });
+                } else {
+                    try {
+                        const response = await axios.get(`${API_BASE}/v1/space/apod`, {
+                            params: { limit: limit },
+                            timeout: 10000
+                        });
+                        apods = response.data.items;
+                    } catch (apiError) {
+                        apods = realAPODImages.slice(0, Math.min(limit, 6));
+                    }
+                }
+                
+                currentAPODImages = apods;
+                updateAPODContainer(apods);
+                
+            } catch (error) {
+                currentAPODImages = realAPODImages.slice(0, Math.min(limit, 6));
+                updateAPODContainer(realAPODImages.slice(0, Math.min(limit, 6)));
+            }
+        }
+        // Глобальные функции для управления картой
+        function toggleRoute() {
+            routeVisible = !routeVisible;
+            if (issPolyline) {
+                if (routeVisible) {
+                    issMap.addLayer(issPolyline);
+                } else {
+                    issMap.removeLayer(issPolyline);
+                }
+            }
+            showSuccess(routeVisible ? 'Маршрут показан' : 'Маршрут скрыт');
+        }
+        
+        function centerMap() {
+            if (issPositionsHistory.length > 0) {
+                const latest = issPositionsHistory[0];
+                issMap.setView([latest.latitude, latest.longitude], 3);
+                showSuccess('Карта центрирована на МКС');
+            }
+        }
+        
+        function toggleTrail() {
+            trailVisible = !trailVisible;
+            if (trailVisible) {
+                issTracker.addTrailDots(issPositionsHistory);
+                showSuccess('След МКС показан');
+            } else {
+                issMarkers.forEach((marker, index) => {
+                    if (marker instanceof L.CircleMarker) {
+                        issMap.removeLayer(marker);
+                        issMarkers.splice(index, 1);
+                    }
+                });
+                showSuccess('След МКС скрыт');
+            }
+        }
+        
+        function setCityCoords(lat, lon) {
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lon;
+            
+            if (issMap) {
+                issMap.setView([lat, lon], 5);
+                showSuccess(`Карта центрирована на координаты: ${lat.toFixed(4)}°, ${lon.toFixed(4)}°`);
+            }
+        }
+
+        // Обработчик ошибок загрузки изображений
+        function handleImageError(index) {
+            const imageContainer = document.getElementById(`apod-image-${index}`);
+            if (imageContainer && currentAPODImages[index]) {
+                const apod = currentAPODImages[index];
+                
+                // Используем фолбэк изображение NASA
+                const fallbackImage = 'https://apod.nasa.gov/apod/image/2401/default_apod.jpg';
+                
+                imageContainer.innerHTML = `
+                    <div style="position: relative; height: 100%; width: 100%;">
+                        <img src="${fallbackImage}" 
+                            class="apod-image" 
+                            alt="${apod.title}"
+                            style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.7);">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; width: 80%;">
+                            <i class="bi bi-stars" style="font-size: 48px; margin-bottom: 15px; color: #ffd166;"></i>
+                            <h6 style="margin-bottom: 10px;">${apod.title}</h6>
+                            <p class="small">Изображение загружается...</p>
+                        </div>
+                        <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">
+                            ${apod.date}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Показ модального окна APOD
+        function showAPODModal(index) {
+            if (index >= 0 && index < currentAPODImages.length) {
+                const apod = currentAPODImages[index];
+                const modalTitle = document.getElementById('apodModalTitle');
+                const modalBody = document.getElementById('apodModalBody');
+                
+                if (modalTitle && modalBody) {
+                    modalTitle.textContent = apod.title;
+                    
+                    const testImage = new Image();
+                    testImage.onload = function() {
+                        modalBody.innerHTML = `
+                            <img src="${apod.url}" 
+                                 class="apod-image-full mb-3" 
+                                 alt="${apod.title}"
+                                 style="max-width: 100%; max-height: 70vh; border-radius: 10px;">
+                            <div class="text-muted mb-2">${apod.date}</div>
+                            <div class="text-start">${apod.explanation}</div>
+                            ${apod.copyright ? `<div class="text-muted mt-2"><i class="bi bi-c-circle"></i> ${apod.copyright}</div>` : ''}
+                        `;
+                    };
+                    
+                    testImage.onerror = function() {
+                        modalBody.innerHTML = `
+                            <div style="padding: 40px; text-align: center; background: linear-gradient(45deg, #0d1b2a, #1b3a4b); border-radius: 10px; margin-bottom: 20px;">
+                                <i class="bi bi-stars" style="font-size: 64px; color: #ffd166; margin-bottom: 20px;"></i>
+                                <h4>${apod.title}</h4>
+                                <p class="text-muted mb-3">${apod.date}</p>
+                                <p class="text-muted">Изображение временно недоступно</p>
+                            </div>
+                            <div class="text-start mt-3">${apod.explanation}</div>
+                            ${apod.copyright ? `<div class="text-muted mt-2"><i class="bi bi-c-circle"></i> ${apod.copyright}</div>` : ''}
+                        `;
+                    };
+                    
+                    testImage.src = apod.url;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('apodModal'));
+                    modal.show();
+                }
+            }
+        }
+        
+        // Уведомления
+        function showSuccess(message) {
+            const successMessage = document.getElementById('successMessage');
+            if (successMessage) {
+                successMessage.textContent = message;
+                const toast = new bootstrap.Toast(document.getElementById('successToast'));
+                toast.show();
+            }
+        }
+        
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            if (errorMessage) {
+                errorMessage.textContent = message;
+                const toast = new bootstrap.Toast(document.getElementById('errorToast'));
+                toast.show();
+            }
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            router.init();
+            SortManager.init('nasa');
+            SortManager.init('iss');
+            SortManager.init('apod');
+            // Обработчики событий для поиска и фильтров
+            const nasaSearch = document.getElementById('nasaSearch');
+            const dataTypeFilter = document.getElementById('dataTypeFilter');
+            
+            if (nasaSearch) {
+                nasaSearch.addEventListener('input', () => {
+                    setTimeout(() => nasaData.loadNASAData(), 300);
+                });
+            }
+            
+            if (dataTypeFilter) {
+                dataTypeFilter.addEventListener('change', () => {
+                    nasaData.loadNASAData();
+                });
+            }
+            
+            // Автоматическая загрузка данных при запуске
+            setTimeout(() => {
+                router.loadStats();
+                issTracker.loadISSPositions();
+                nasaData.loadNASAData();
+                apodGallery.loadAPODData();
+            }, 1000);
+        });
+        const SortManager = {
+            // Конфигурация сортировки для разных таблиц
+            configs: {
+                'nasa': {
+                    currentSort: { column: null, direction: 'asc' },
+                    columns: {
+                        'id': { type: 'number', label: 'ID' },
+                        'title': { type: 'string', label: 'Название' },
+                        'mission': { type: 'string', label: 'Миссия' },
+                        'type': { type: 'string', label: 'Тип данных' },
+                        'size': { type: 'number', label: 'Размер' },
+                        'date': { type: 'date', label: 'Дата' }
+                    }
+                },
+                'iss': {
+                    currentSort: { column: 'timestamp', direction: 'desc' },
+                    columns: {
+                        'timestamp': { type: 'date', label: 'Время' },
+                        'latitude': { type: 'number', label: 'Широта' },
+                        'longitude': { type: 'number', label: 'Долгота' },
+                        'velocity': { type: 'number', label: 'Скорость' },
+                        'altitude': { type: 'number', label: 'Высота' }
+                    }
+                },
+                'apod': {
+                    currentSort: { column: 'date', direction: 'desc' },
+                    columns: {
+                        'date': { type: 'date', label: 'Дата' },
+                        'title': { type: 'string', label: 'Название' }
+                    }
+                }
+            },
+            
+            // Инициализация сортировки для таблицы
+            init(tableType) {
+                if (!this.configs[tableType]) return;
+                
+                const config = this.configs[tableType];
+                if (config.currentSort.column) {
+                    this.updateSortUI(tableType, config.currentSort.column, config.currentSort.direction);
+                }
+            },
+            
+            // Сортировка данных
+            sort(data, tableType, column, direction = 'asc') {
+                if (!data || !Array.isArray(data)) return data;
+                
+                const config = this.configs[tableType];
+                if (!config || !config.columns[column]) return data;
+                
+                const columnConfig = config.columns[column];
+                
+                // Сохраняем текущую сортировку
+                config.currentSort = { column, direction };
+                
+                // Копируем данные для сортировки
+                const sortedData = [...data];
+                
+                // Функция сравнения в зависимости от типа данных
+                const compare = (a, b) => {
+                    let valA = a[column];
+                    let valB = b[column];
+                    
+                    // Обработка вложенных свойств
+                    if (column === 'date' && a.fetched_at) {
+                        valA = a.fetched_at;
+                        valB = b.fetched_at;
+                    }
+                    
+                    if (columnConfig.type === 'number') {
+                        return (valA || 0) - (valB || 0);
+                    } else if (columnConfig.type === 'date') {
+                        return new Date(valA || 0) - new Date(valB || 0);
+                    } else {
+                        // Строковое сравнение
+                        return String(valA || '').localeCompare(String(valB || ''), 'ru');
+                    }
+                };
+                
+                // Сортировка
+                sortedData.sort((a, b) => {
+                    const result = compare(a, b);
+                    return direction === 'asc' ? result : -result;
+                });
+                
+                // Обновляем UI
+                this.updateSortUI(tableType, column, direction);
+                
+                return sortedData;
+            },
+            
+            // Обновление UI сортировки
+            updateSortUI(tableType, column, direction) {
+                // Сбрасываем все активные состояния
+                document.querySelectorAll('.sortable-header.active').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                document.querySelectorAll('.sort-icon').forEach(el => {
+                    el.classList.remove('asc', 'desc');
+                    el.innerHTML = '<i class="bi bi-arrow-down-up"></i>';
+                });
+                
+                document.querySelectorAll('.sort-btn.active').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Активируем текущую сортировку
+                const header = document.querySelector(`.sortable-header[data-column="${column}"]`);
+                const sortIcon = document.getElementById(`sortIcon-${column}`);
+                const sortBtn = document.getElementById(`sortBtn-${column}-${direction}`);
+                
+                if (header) {
+                    header.classList.add('active');
+                }
+                
+                if (sortIcon) {
+                    sortIcon.classList.add(direction);
+                    sortIcon.innerHTML = direction === 'asc' 
+                        ? '<i class="bi bi-arrow-up"></i>' 
+                        : '<i class="bi bi-arrow-down"></i>';
+                }
+                
+                if (sortBtn) {
+                    sortBtn.classList.add('active');
+                }
+                
+                // Обновляем информацию о текущей сортировке
+                this.updateSortInfo(tableType, column, direction);
+            },
+            
+            // Обновление информации о сортировке
+            updateSortInfo(tableType, column, direction) {
+                const infoElement = document.getElementById('currentSortInfo');
+                if (!infoElement) return;
+                
+                const config = this.configs[tableType];
+                if (!config || !config.columns[column]) return;
+                
+                const columnLabel = config.columns[column].label;
+                const directionLabel = direction === 'asc' ? 'возрастанию' : 'убыванию';
+                
+                infoElement.innerHTML = `
+                    Текущая сортировка: <span>${columnLabel} (по ${directionLabel})</span>
+                `;
+            },
+            
+            // Сброс сортировки
+            resetSort(tableType) {
+                const config = this.configs[tableType];
+                if (!config) return;
+                
+                config.currentSort = { column: null, direction: 'asc' };
+                
+                // Сброс UI
+                document.querySelectorAll('.sortable-header.active').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                document.querySelectorAll('.sort-icon').forEach(el => {
+                    el.classList.remove('asc', 'desc');
+                    el.innerHTML = '<i class="bi bi-arrow-down-up"></i>';
+                });
+                
+                document.querySelectorAll('.sort-btn.active').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                const infoElement = document.getElementById('currentSortInfo');
+                if (infoElement) {
+                    infoElement.innerHTML = 'Текущая сортировка: <span>по умолчанию</span>';
+                }
+            },
+            
+            // Изменение направления сортировки
+            toggleSortDirection(tableType) {
+                const config = this.configs[tableType];
+                if (!config || !config.currentSort.column) return;
+                
+                const newDirection = config.currentSort.direction === 'asc' ? 'desc' : 'asc';
+                config.currentSort.direction = newDirection;
+                
+                this.updateSortUI(tableType, config.currentSort.column, newDirection);
+                
+                return newDirection;
+            },
+            
+            // Получение текущей сортировки
+            getCurrentSort(tableType) {
+                const config = this.configs[tableType];
+                return config ? config.currentSort : null;
+            }
+        };
+    </script>
+</body>
+</html>
