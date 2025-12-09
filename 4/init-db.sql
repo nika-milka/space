@@ -2,11 +2,13 @@
 -- Выполняется автоматически при первом запуске контейнера
 
 -- Создаем пользователя monouser
-CREATE USER monouser WITH PASSWORD 'monopass';
-
--- Создаем базу данных monolith
-CREATE DATABASE monolith OWNER monouser;
-
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'monouser') THEN
+        CREATE USER monouser WITH PASSWORD 'monopass';
+    END IF;
+END
+$$;
 -- Подключаемся к новой базе данных
 \c monolith
 
