@@ -28,3 +28,8 @@ http://localhost:8000/v1/space/pascal/csv?format=html&page=1&limit=30
 http://localhost:8000/v1/space/pascal/csv/download?format=csv
 http://localhost:8000/v1/space/pascal/csv/download?format=excel
 http://localhost:8000/v1/space/pascal/csv/stats
+
+# 4. Запуск тестов
+python testsfront.py(фронт(нужно запустить приложение))
+python tests.py(интеграционныу)
+python testsback.py(бэк)
